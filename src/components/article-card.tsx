@@ -21,7 +21,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
       </div>
       <h3><Link href={`/blog/${article.slug}`}>{article.title}</Link></h3>
       <p>{article.description}</p>
-      <div className="article-author">By {article.author.name ?? "Ink & Signal contributor"}</div>
+      <div className="article-author">By <Link href={`/authors/${article.author.id}`}>{article.author.name ?? "Ink & Signal contributor"}</Link></div>
     </article>
   );
 }

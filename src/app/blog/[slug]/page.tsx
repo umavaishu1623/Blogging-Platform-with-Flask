@@ -7,7 +7,11 @@ import { RichText } from "@/components/rich-text";
 import { ArticleEngagement } from "@/components/article-engagement";
 import { CommentForm } from "@/components/comment-form";
 import { ViewTracker } from "@/components/view-tracker";
-import { getPublishedArticle, getReadingMinutes } from "@/lib/articles";
+import { ShareButton } from "@/components/share-button";
+import { ReadingProgress } from "@/components/reading-progress";
+import { ReportForm } from "@/components/report-form";
+import { getPublishedArticle, getReadingMinutes, getRelatedArticles } from "@/lib/articles";
+import { ArticleCard } from "@/components/article-card";
 
 type ArticlePageProps = { params: Promise<{ slug: string }> };
 
@@ -18,6 +22,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   return {
     title: article.seoTitle ?? article.title,
     description: article.seoDescription ?? article.description,
+    alternates: { canonical: `/blog/${article.slug}` },
     openGraph: {
       type: "article",
       title: article.seoTitle ?? article.title,
@@ -35,6 +40,11 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   if (!article) notFound();
 
   const readMinutes = getReadingMinutes(article.content);
+  const relatedArticles = await getRelatedArticles(
+    article.id,
+    article.categories.map((category) => category.id),
+    article.tags.map((tag) => tag.id),
+  );
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -49,6 +59,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   return (
     <article className="article-page page-width">
+      <ReadingProgress />
       <ViewTracker slug={article.slug} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
       <Link className="back-link" href="/explore"><ArrowLeft size={15} /> All stories</Link>
@@ -61,8 +72,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         <p className="article-deck">{article.description}</p>
         <div className="article-byline">
           <div className="author-avatar">{article.author.name?.slice(0, 1) ?? "I"}</div>
-          <div><strong>{article.author.name ?? "Ink & Signal contributor"}</strong><span>{article.publishedAt?.toLocaleDateString("en", { year: "numeric", month: "long", day: "numeric" })}</span></div>
+          <div><Link className="article-author-link" href={`/authors/${article.author.id}`}><strong>{article.author.name ?? "Ink & Signal contributor"}</strong></Link><span>{article.publishedAt?.toLocaleDateString("en", { year: "numeric", month: "long", day: "numeric" })}</span></div>
           <span className="reading-time"><Clock3 size={14} /> {readMinutes} min read</span>
+          <ShareButton title={article.title} />
         </div>
       </header>
       {article.coverImageUrl && <div className="article-cover"><Image alt={article.coverImageAlt ?? ""} fill priority sizes="(max-width: 900px) 100vw, 900px" src={article.coverImageUrl} /></div>}
@@ -73,19 +85,22 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         </aside>
         <div className="article-body"><RichText content={article.content} /></div>
       </div>
+      <div className="article-report"><ReportForm blogId={article.id} /></div>
       <section className="comments-section">
         <div className="section-heading"><div><p className="eyebrow">JOIN THE CONVERSATION</p><h2>Responses <span>({article._count.comments})</span></h2></div></div>
         <CommentForm blogId={article.id} />
         {article.comments.length ? article.comments.map((comment) => (
           <article className="comment-item" key={comment.id}>
-            <div className="comment-avatar">{comment.author.name?.slice(0, 1) ?? "R"}</div>
+            <div className="comment-avatar" id={`comment-${comment.id}`}>{comment.author.name?.slice(0, 1) ?? "R"}</div>
             <div><strong>{comment.author.name ?? "Reader"}</strong><time>{comment.createdAt.toLocaleDateString("en", { month: "short", day: "numeric" })}</time><p>{comment.body}</p>
               <details className="reply-details"><summary>Reply</summary><CommentForm blogId={article.id} compact parentId={comment.id} /></details>
+              <ReportForm blogId={article.id} commentId={comment.id} />
               {comment.replies.map((reply) => <div className="comment-reply" key={reply.id}><strong>{reply.author.name ?? "Reader"}</strong><p>{reply.body}</p></div>)}
             </div>
           </article>
         )) : <p className="muted-copy">No responses yet. A thoughtful conversation starts with one.</p>}
       </section>
+      {relatedArticles.length > 0 && <section className="related-section"><div className="section-heading"><div><p className="eyebrow">FOLLOW THE THREAD</p><h2>Related stories</h2></div></div><div className="article-grid">{relatedArticles.map((related) => <ArticleCard article={related} key={related.id} />)}</div></section>}
     </article>
   );
 }

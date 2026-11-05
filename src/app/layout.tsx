@@ -3,6 +3,7 @@ import { DM_Sans, Newsreader } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
 const bodyFont = DM_Sans({ subsets: ["latin"], variable: "--font-body" });
@@ -28,9 +29,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning>
       <body className={`${bodyFont.variable} ${displayFont.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <SiteHeader />
-          <main>{children}</main>
-          <SiteFooter />
+          <AuthProvider>
+            <SiteHeader />
+            <main>{children}</main>
+            <SiteFooter />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

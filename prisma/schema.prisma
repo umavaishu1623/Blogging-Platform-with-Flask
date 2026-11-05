@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -62,6 +63,7 @@ model User {
   following       Follow[]     @relation("following")
   followers       Follow[]     @relation("followers")
   notifications   Notification[]
+  actedNotifications Notification[] @relation("notificationActor")
   reports         Report[]     @relation("reporter")
   resolvedReports Report[]     @relation("resolver")
   passwordReset   PasswordResetToken?
@@ -167,6 +169,7 @@ model Comment {
   parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   Comment[]     @relation("CommentReplies")
   reports   Report[]
+  notifications Notification[]
 
   @@index([blogId, status, createdAt])
   @@index([parentId, createdAt])
@@ -210,13 +213,14 @@ model Follow {
 }
 
 model NewsletterSubscription {
-  id             String    @id @default(cuid())
-  email          String    @unique
-  consentAt      DateTime
-  verifiedAt     DateTime?
-  unsubscribedAt DateTime?
-  tokenHash      String?   @unique
-  createdAt      DateTime  @default(now())
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  consentAt             DateTime
+  verifiedAt            DateTime?
+  unsubscribedAt        DateTime?
+  verificationTokenHash String?   @unique
+  unsubscribeTokenHash  String?   @unique
+  createdAt             DateTime  @default(now())
 
   @@index([unsubscribedAt, createdAt])
 }
@@ -226,13 +230,17 @@ model Notification {
   userId    String
   actorId   String?
   blogId    String?
+  commentId String?
   type      NotificationType
   readAt    DateTime?
   createdAt DateTime         @default(now())
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?            @relation("notificationActor", fields: [actorId], references: [id], onDelete: SetNull)
   blog      Blog?            @relation(fields: [blogId], references: [id], onDelete: SetNull)
+  comment   Comment?         @relation(fields: [commentId], references: [id], onDelete: SetNull)
 
   @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([commentId])
 }
 
 model PasswordResetToken {
@@ -256,6 +264,7 @@ model ArticleView {
 
   @@unique([blogId, visitorHash, viewedOn])
   @@index([blogId, createdAt])
+  @@index([createdAt, blogId])
 }
 
 model Report {

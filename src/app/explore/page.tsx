@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "Browse thoughtful writing from independent voices across every subject.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function ExplorePage() {
   const [{ articles }, categories] = await Promise.all([searchArticles(), getCategories()]);
 

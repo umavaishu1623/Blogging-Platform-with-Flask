@@ -10,7 +10,11 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   const { slug } = await params;
   if (!process.env.DATABASE_URL) return { title: "Category" };
   const category = await prisma.category.findUnique({ where: { slug } });
-  return { title: category?.name ?? "Category", description: `Stories filed under ${category?.name ?? "this category"}.` };
+  return {
+    title: category?.name ?? "Category",
+    description: `Stories filed under ${category?.name ?? "this category"}.`,
+    alternates: { canonical: `/categories/${slug}` },
+  };
 }
 
 export default async function CategoryDetailPage({ params }: CategoryPageProps) {

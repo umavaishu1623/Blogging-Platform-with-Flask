@@ -106,7 +106,13 @@ export async function getPublishedArticle(slug: string) {
         },
         orderBy: { createdAt: "desc" },
       },
-      _count: { select: { likes: true, bookmarks: true, comments: true } },
+      _count: {
+        select: {
+          likes: true,
+          bookmarks: true,
+          comments: { where: { status: "VISIBLE" } },
+        },
+      },
     },
   });
 }
@@ -115,7 +121,54 @@ export async function getCategories() {
   if (!process.env.DATABASE_URL) return [];
   return prisma.category.findMany({
     where: { blogs: { some: { status: "PUBLISHED", publishedAt: { lte: new Date() } } } },
+    include: { _count: { select: { blogs: { where: { status: "PUBLISHED", publishedAt: { lte: new Date() } } } } } },
     orderBy: { name: "asc" },
+  });
+}
+
+export async function getTrendingArticles(limit = 12) {
+  if (!process.env.DATABASE_URL) return [];
+  const boundedLimit = Math.max(1, Math.min(24, limit));
+  const rankedViews = await prisma.articleView.groupBy({
+    by: ["blogId"],
+    where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+    _count: { blogId: true },
+    orderBy: { _count: { blogId: "desc" } },
+    take: boundedLimit,
+  });
+  const rankedIds = rankedViews.map(({ blogId }) => blogId);
+  const articles = rankedIds.length
+    ? await prisma.blog.findMany({
+        where: { id: { in: rankedIds }, status: "PUBLISHED", publishedAt: { lte: new Date() } },
+        include: { author: true, categories: true, tags: true },
+      })
+    : [];
+  const byId = new Map(articles.map((article) => [article.id, article]));
+  const trending = rankedIds.flatMap((id) => byId.has(id) ? [byId.get(id)!] : []);
+  if (trending.length) return trending;
+  return prisma.blog.findMany({
+    where: { status: "PUBLISHED", publishedAt: { lte: new Date() } },
+    include: { author: true, categories: true, tags: true },
+    orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+    take: boundedLimit,
+  });
+}
+
+export async function getRelatedArticles(blogId: string, categoryIds: string[], tagIds: string[]) {
+  if (!process.env.DATABASE_URL || (!categoryIds.length && !tagIds.length)) return [];
+  return prisma.blog.findMany({
+    where: {
+      id: { not: blogId },
+      status: "PUBLISHED",
+      publishedAt: { lte: new Date() },
+      OR: [
+        ...(categoryIds.length ? [{ categories: { some: { id: { in: categoryIds } } } }] : []),
+        ...(tagIds.length ? [{ tags: { some: { id: { in: tagIds } } } }] : []),
+      ],
+    },
+    include: { author: true, categories: true, tags: true },
+    orderBy: [{ viewCount: "desc" }, { publishedAt: "desc" }],
+    take: 3,
   });
 }
 

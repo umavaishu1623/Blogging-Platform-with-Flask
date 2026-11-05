@@ -3,7 +3,11 @@ import Link from "next/link";
 import { ArticleCard } from "@/components/article-card";
 import { getCategories, searchArticles } from "@/lib/articles";
 
-export const metadata: Metadata = { title: "Search stories" };
+export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
+  const { q } = await searchParams;
+  const query = q?.trim().slice(0, 120);
+  return { title: query ? `Search: ${query}` : "Search stories", robots: { index: false, follow: true } };
+}
 
 type SearchPageProps = {
   searchParams: Promise<{ q?: string; category?: string; tag?: string; page?: string }>;

@@ -3,11 +3,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowDown, ArrowRight, BookOpen, Search, Sparkles } from "lucide-react";
 import { prisma } from "@/lib/db/prisma";
+import { NewsletterForm } from "@/components/newsletter-form";
+import { HeroIntro } from "@/components/hero-intro";
+import { RecentlyViewed } from "@/components/recently-viewed";
+import { getCategories, getTrendingArticles } from "@/lib/articles";
+import { ArticleCard } from "@/components/article-card";
 
 export const metadata: Metadata = {
   title: "Ideas worth a slower read",
   description: "Discover thoughtful essays, field notes, and new perspectives from independent writers.",
 };
+
+export const dynamic = "force-dynamic";
 
 async function getLatestArticles() {
   if (!process.env.DATABASE_URL) return [];
@@ -21,7 +28,11 @@ async function getLatestArticles() {
 }
 
 export default async function HomePage() {
-  const articles = await getLatestArticles();
+  const [articles, categories, trending] = await Promise.all([
+    getLatestArticles(),
+    getCategories(),
+    getTrendingArticles(3),
+  ]);
 
   return (
     <>
@@ -37,7 +48,7 @@ export default async function HomePage() {
           />
         </div>
         <div className="hero-scrim" aria-hidden="true" />
-        <div className="hero-content page-width">
+        <HeroIntro>
           <p className="eyebrow hero-eyebrow"><span /> A journal for the curious</p>
           <h1>Ideas worth<br />a slower <em>read.</em></h1>
           <p className="hero-copy">A little less noise. A lot more signal. Find thoughtful writing from people who care about what they put into the world.</p>
@@ -46,7 +57,7 @@ export default async function HomePage() {
             <Link className="hero-secondary" href="/write">Have something to say? <span>Start writing</span></Link>
           </div>
           <div className="hero-note"><ArrowDown size={15} /> Made for the in-between moments</div>
-        </div>
+        </HeroIntro>
         <div className="hero-index"><span>01</span> / 03</div>
       </section>
 
@@ -59,6 +70,8 @@ export default async function HomePage() {
         </div>
         <div className="intro-mark" aria-hidden="true">i<span>.</span></div>
       </section>
+
+      {categories.length > 0 && <section className="popular-topics page-width"><div><p className="eyebrow">A FEW PLACES TO BEGIN</p><h2>Popular subjects</h2></div><div className="popular-topic-list">{categories.slice(0, 6).map((category) => <Link href={`/categories/${category.slug}`} key={category.id}><span>{category.name}</span><small>{category._count.blogs} {category._count.blogs === 1 ? "story" : "stories"}</small></Link>)}</div></section>}
 
       <section className="latest-section">
         <div className="page-width">
@@ -101,6 +114,17 @@ export default async function HomePage() {
           )}
         </div>
       </section>
+
+      {trending.length > 0 && <section className="trending-section page-width"><div className="section-heading"><div><p className="eyebrow">MOST READ THIS MOMENT</p><h2>Finding an audience</h2></div><Link className="underlined-link" href="/explore/trending">Trending stories <ArrowRight size={15} /></Link></div><div className="article-grid">{trending.map((article) => <ArticleCard article={article} key={article.id} />)}</div></section>}
+
+      <section className="newsletter-band">
+        <div className="newsletter-inner page-width">
+          <div><p className="eyebrow">A LETTER, NOT MORE NOISE</p><h2>One thoughtful read<br />for your inbox.</h2><p className="newsletter-copy">Occasional notes from the journal. Confirm by email, leave whenever you like.</p></div>
+          <NewsletterForm />
+        </div>
+      </section>
+
+      <RecentlyViewed />
 
       <section className="closing-band page-width">
         <div className="closing-icon"><Search size={20} /></div>

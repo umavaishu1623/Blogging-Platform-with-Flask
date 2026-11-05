@@ -17,7 +17,7 @@ Email provider -> verification, password reset, and newsletter workflows
 Vercel -> Next.js application and scheduled jobs
 ```
 
-The app is a modular monolith: UI routes, API handlers, and Server Actions share domain services and authorization rules. PostgreSQL is the source of truth. Public article pages are server-rendered and cacheable; personalized pages and mutations are authenticated and uncached. Zod schemas validate every untrusted input. Privileged operations enforce roles and resource ownership on the server, not in the UI.
+The app is a modular monolith: UI routes, API handlers, and Server Actions share validation and authorization rules. PostgreSQL is the source of truth. Pages are server-rendered; authenticated pages and mutations are uncached. Zod schemas validate untrusted input. Privileged operations enforce roles and resource ownership on the server, not in the UI.
 
 ### Application boundaries
 
@@ -25,7 +25,7 @@ The app is a modular monolith: UI routes, API handlers, and Server Actions share
 - `components/`: accessible, reusable presentation components.
 - `lib/auth/`: Auth.js configuration and session/role helpers.
 - `lib/validation/`: shared Zod input schemas.
-- `lib/services/`: blog, interaction, moderation, and newsletter rules.
+- `lib/actions/`: publishing, account, interaction, moderation, and newsletter mutations.
 - `lib/db/`: Prisma client and repository access.
 - `prisma/`: relational schema and migrations.
 - `tests/`: unit, integration, and end-to-end coverage.
@@ -38,7 +38,7 @@ PostgreSQL with Prisma. IDs are opaque strings; timestamps use UTC. Slugs are un
 | --- | --- |
 | `User` | Auth identity, unique email, display/profile fields, role (`ADMIN`, `AUTHOR`, `READER`), verification state; owns articles, comments, likes, bookmarks, follows, and notifications. |
 | `Account`, `Session`, `VerificationToken` | Auth.js OAuth accounts, optional adapter session storage, and one-time verification tokens. This app uses Auth.js JWT sessions because its Credentials provider does not support database sessions. Credentials use a salted password hash, never plaintext. |
-| `Blog` | Author-owned article with unique slug, title, description, rich-text JSON content, optional sanitized HTML, image URL/alt text, status (`DRAFT`, `SCHEDULED`, `PUBLISHED`, `ARCHIVED`), publication time, SEO fields, and view count. Indexed by status/publication date, author, and slug. |
+| `Blog` | Author-owned article with unique slug, title, description, validated rich-text JSON content, image URL/alt text, status (`DRAFT`, `SCHEDULED`, `PUBLISHED`, `ARCHIVED`), publication time, SEO fields, and view count. Indexed by status/publication date, author, and slug. |
 | `Category` | Unique name and slug; many-to-many with blogs. |
 | `Tag` | Unique normalized name and slug; many-to-many with blogs. |
 | `Comment` | Article- and user-owned threaded comment; nullable parent for replies, moderation state, and timestamps. Parent/article indexes support thread retrieval. |
@@ -55,7 +55,7 @@ Important constraints: email is normalized to lowercase before its unique constr
 
 ### API conventions
 
-Use Server Actions for same-origin UI mutations and REST route handlers under `/api/v1` for external or client-consumed resources. JSON responses use standard HTTP status codes and a consistent `{ data }` / `{ error: { code, message } }` envelope. List endpoints use bounded cursor pagination. Mutating routes validate input, verify CSRF/origin where cookie-authenticated, apply rate limits, then authorize before writing. Never return secrets, password hashes, or internal moderation fields.
+Use Server Actions for same-origin UI mutations and REST route handlers under `/api/v1` for public reads and uploads. The implemented list API uses bounded page-number pagination. Auth.js and Next.js Server Actions provide same-origin request protections; upload routes verify the request origin, rate-limit, and authorize. API response details are documented in [docs/API.md](docs/API.md). Never return secrets, password hashes, or internal moderation fields.
 
 ## Implementation plan
 
@@ -89,8 +89,8 @@ npx prisma migrate dev
 npm run dev
 ```
 
-No production credentials or real third-party integrations are committed. Google OAuth, email delivery, Cloudinary, PostgreSQL, Vercel, DNS, and SSL require operator-owned accounts and secrets. See `.env.example` and the deployment guide once those integrations are implemented.
+No production credentials or real third-party integrations are committed. Google OAuth, email delivery, Cloudinary, PostgreSQL, Vercel, DNS, and SSL require operator-owned accounts and secrets. See `.env.example` and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for provider setup.
 
 ## Current status
 
-Architecture and implementation plan are documented. Project scaffolding and feature implementation are in progress. This workspace currently has no Node.js/npm executable, so builds and tests must be run after installing Node.js LTS.
+The application source, Prisma schema, primary workflows, and CI configuration are present. This environment has no Node.js/npm executable, so no dependency install, Prisma-generated migration, build, or test run could be completed here. Before production, install Node.js 22, generate and commit the initial Prisma migration, create a lockfile, then pass the CI checks. OAuth, email, database, Redis, Cloudinary, AI, Vercel, DNS, SSL, and legal review also require operator-owned configuration. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and [docs/API.md](docs/API.md).
