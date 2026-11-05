@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AUTHOR
+  READER
+}
+
+enum BlogStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CommentStatus {
+  VISIBLE
+  PENDING
+  HIDDEN
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+enum NotificationType {
+  COMMENT
+  REPLY
+  FOLLOW
+  ARTICLE_PUBLISHED
+  MODERATION
+}
+
+model User {
+  id              String       @id @default(cuid())
+  name            String?
+  email           String       @unique
+  emailVerified   DateTime?
+  image           String?
+  passwordHash    String?
+  role            Role         @default(READER)
+  bio             String?      @db.VarChar(500)
+  website         String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  accounts        Account[]
+  sessions        Session[]
+  blogs           Blog[]
+  comments        Comment[]
+  likes           Like[]
+  bookmarks       Bookmark[]
+  following       Follow[]     @relation("following")
+  followers       Follow[]     @relation("followers")
+  notifications   Notification[]
+  reports         Report[]     @relation("reporter")
+  resolvedReports Report[]     @relation("resolver")
+  passwordReset   PasswordResetToken?
+
+  @@index([role, createdAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @id
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Blog {
+  id              String     @id @default(cuid())
+  authorId        String
+  title           String     @db.VarChar(180)
+  slug            String     @unique
+  description     String     @db.VarChar(320)
+  content         Json
+  coverImageUrl   String?
+  coverImageAlt   String?
+  status          BlogStatus @default(DRAFT)
+  publishedAt     DateTime?
+  scheduledFor    DateTime?
+  seoTitle        String?    @db.VarChar(70)
+  seoDescription  String?    @db.VarChar(180)
+  viewCount       Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  author          User       @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  categories      Category[]
+  tags            Tag[]
+  comments        Comment[]
+  likes           Like[]
+  bookmarks       Bookmark[]
+  views           ArticleView[]
+  notifications   Notification[]
+  reports         Report[]
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([authorId, updatedAt(sort: Desc)])
+  @@index([scheduledFor, status])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique @db.VarChar(60)
+  slug      String   @unique @db.VarChar(80)
+  createdAt DateTime @default(now())
+  blogs     Blog[]
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique @db.VarChar(60)
+  slug      String   @unique @db.VarChar(80)
+  createdAt DateTime @default(now())
+  blogs     Blog[]
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  blogId    String
+  authorId  String
+  parentId  String?
+  body      String        @db.VarChar(5000)
+  status    CommentStatus @default(VISIBLE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  blog      Blog          @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  reports   Report[]
+
+  @@index([blogId, status, createdAt])
+  @@index([parentId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  blogId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blogId])
+  @@index([blogId, createdAt])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  blogId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blogId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId, createdAt(sort: Desc)])
+}
+
+model NewsletterSubscription {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  consentAt      DateTime
+  verifiedAt     DateTime?
+  unsubscribedAt DateTime?
+  tokenHash      String?   @unique
+  createdAt      DateTime  @default(now())
+
+  @@index([unsubscribedAt, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  actorId   String?
+  blogId    String?
+  type      NotificationType
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blog      Blog?            @relation(fields: [blogId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model ArticleView {
+  id          String   @id @default(cuid())
+  blogId      String
+  visitorHash String
+  viewedOn    DateTime @db.Date
+  createdAt   DateTime @default(now())
+  blog        Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, visitorHash, viewedOn])
+  @@index([blogId, createdAt])
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  reporterId  String
+  blogId      String?
+  commentId   String?
+  reason      String       @db.VarChar(1000)
+  status      ReportStatus @default(OPEN)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  reporter    User         @relation("reporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  blog        Blog?        @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  comment     Comment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  resolver    User?        @relation("resolver", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+}
