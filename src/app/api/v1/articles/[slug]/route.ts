@@ -1,10 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getRequestIp } from "@/lib/security/request-ip";
 
 type ArticleRouteProps = { params: Promise<{ slug: string }> };
 
 export async function GET(_request: NextRequest, { params }: ArticleRouteProps) {
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: { code: "DATABASE_UNAVAILABLE", message: "Database is not configured." } }, { status: 503 });
+  if (!(await checkRateLimit("public-article-detail", getRequestIp(_request.headers), 120, 60))) {
+    return NextResponse.json({ error: { code: "RATE_LIMITED", message: "Too many requests." } }, { status: 429 });
+  }
   const { slug } = await params;
   if (slug.length > 100) return NextResponse.json({ error: { code: "NOT_FOUND", message: "Story not found." } }, { status: 404 });
   const article = await prisma.blog.findFirst({

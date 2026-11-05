@@ -1,8 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getRequestIp } from "@/lib/security/request-ip";
 
 export async function GET(request: NextRequest) {
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  if (!(await checkRateLimit("public-recent-articles", getRequestIp(request.headers), 60, 60))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
   const slugs = [...new Set((request.nextUrl.searchParams.get("slugs") ?? "").split(",").filter((slug) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)).slice(0, 5))];
   if (!slugs.length) return NextResponse.json({ data: [] });
   const articles = await prisma.blog.findMany({

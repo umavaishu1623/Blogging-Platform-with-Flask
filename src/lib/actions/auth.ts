@@ -8,6 +8,7 @@ import { signIn } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
 import { sendEmail } from "@/lib/email/send";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getRequestIp } from "@/lib/security/request-ip";
 import { z } from "zod";
 
 export type AuthActionState = {
@@ -72,14 +73,19 @@ export async function registerUser(
   const parsed = registrationSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check your details." };
 
-  const allowed = await checkRateLimit("registration", parsed.data.email, 4, 3600);
-  if (!allowed) return { error: "Too many attempts. Please try again later." };
+  const requestHeaders = await headers();
+  const [emailAllowed, ipAllowed] = await Promise.all([
+    checkRateLimit("registration-email", parsed.data.email, 4, 3600),
+    checkRateLimit("registration-ip", getRequestIp(requestHeaders), 10, 3600),
+  ]);
+  if (!emailAllowed || !ipAllowed) return { error: "Too many attempts. Please try again later." };
   if (!process.env.APP_URL || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
     return { error: "Account email delivery is not configured yet." };
   }
 
+  const genericResponse = "If registration is available for that address, a verification email will arrive shortly.";
   const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existingUser) return { success: "If registration is available for that address, a verification email will arrive shortly." };
+  if (existingUser) return { success: genericResponse };
 
   const rawToken = randomBytes(32).toString("hex");
   const tokenHash = createHash("sha256").update(rawToken).digest("hex");
@@ -102,7 +108,7 @@ export async function registerUser(
     });
     userId = user.id;
   } catch {
-    return { success: "If registration is available for that address, a verification email will arrive shortly." };
+    return { success: genericResponse };
   }
 
   const verificationUrl = new URL("/verify", process.env.APP_URL);
@@ -120,10 +126,10 @@ export async function registerUser(
       prisma.verificationToken.deleteMany({ where: { identifier: parsed.data.email } }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
-    return { error: "We could not send the verification email. Please try again later." };
+    return { success: genericResponse };
   }
 
-  return { success: "Check your inbox for a verification link. It expires in one hour." };
+  return { success: genericResponse };
 }
 
 export async function verifyEmail(email: string, rawToken: string) {

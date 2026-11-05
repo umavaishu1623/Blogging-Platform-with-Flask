@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getRequestIp } from "@/lib/security/request-ip";
 
 const credentialsSchema = z.object({
   email: z.string().email().max(254).transform((email) => email.trim().toLowerCase()),
@@ -29,7 +30,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
 
         const requestHeaders = await headers();
-        const clientIp = requestHeaders.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? "unknown";
+        const clientIp = getRequestIp(requestHeaders);
         const allowed = await checkRateLimit(
           "credential-signin",
           `${clientIp}:${parsed.data.email}`,

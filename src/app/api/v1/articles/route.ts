@@ -1,8 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { searchArticles } from "@/lib/articles";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getRequestIp } from "@/lib/security/request-ip";
 
 export async function GET(request: NextRequest) {
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: { code: "DATABASE_UNAVAILABLE", message: "Database is not configured." } }, { status: 503 });
+  if (!(await checkRateLimit("public-article-list", getRequestIp(request.headers), 60, 60))) {
+    return NextResponse.json({ error: { code: "RATE_LIMITED", message: "Too many requests." } }, { status: 429 });
+  }
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get("q")?.slice(0, 120) ?? "";
   const category = searchParams.get("category")?.slice(0, 80) ?? "";
