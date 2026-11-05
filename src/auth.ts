@@ -1,4 +1,5 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { Role } from "@prisma/client";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
@@ -55,9 +56,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     session({ session, token }) {
-      if (session.user && token.sub && token.role) {
+      const role = typeof token.role === "string" && Object.values(Role).includes(token.role as Role)
+        ? token.role as Role
+        : undefined;
+      if (session.user && token.sub && role) {
         session.user.id = token.sub;
-        session.user.role = token.role;
+        session.user.role = role;
       }
       return session;
     },

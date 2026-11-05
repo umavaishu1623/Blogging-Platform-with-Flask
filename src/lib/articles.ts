@@ -55,7 +55,7 @@ export async function searchArticles(filters: ArticleFilters = {}) {
         })
       : [];
     const byId = new Map(articles.map((article) => [article.id, article]));
-    const total = Number(count[0]?.count ?? 0n);
+    const total = Number(count[0]?.count ?? 0);
     return {
       articles: matches.flatMap((match) => {
         const article = byId.get(match.id);

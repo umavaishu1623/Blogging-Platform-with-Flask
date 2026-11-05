@@ -6,12 +6,12 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: Role;
+      role?: Role;
     } & NonNullable<DefaultSession["user"]>;
   }
 
   interface User {
-    role: Role;
+    role?: Role;
   }
 }
 

@@ -77,14 +77,21 @@ export async function confirmNewsletter(
   return { success: "Your email is confirmed. Thanks for subscribing." };
 }
 
-export async function unsubscribeNewsletter(formData: FormData) {
+export async function unsubscribeNewsletter(
+  _previousState: NewsletterState,
+  formData: FormData,
+): Promise<NewsletterState> {
   const token = formData.get("token");
-  if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return false;
+  if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) {
+    return { error: "This unsubscribe link is invalid." };
+  }
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const result = await prisma.newsletterSubscription.updateMany({
     where: { unsubscribeTokenHash: tokenHash, unsubscribedAt: null },
     data: { unsubscribedAt: new Date(), verificationTokenHash: null },
   });
   revalidatePath("/");
-  return result.count === 1;
+  return result.count === 1
+    ? { success: "You have been unsubscribed." }
+    : { error: "This link has expired or has already been used." };
 }
